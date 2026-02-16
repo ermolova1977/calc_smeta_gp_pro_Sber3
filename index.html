@@ -1,0 +1,195 @@
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Смета ГП (Банк + Управленка)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+body{background:#0b1020;color:#e9eeff;font-family:system-ui;margin:0}
+.wrap{max-width:1400px;margin:30px auto;padding:0 20px}
+.card{background:#121a33;border-radius:12px;padding:18px;margin-bottom:18px}
+h1{font-size:20px}
+h2{font-size:14px;color:#9fbfff}
+table{width:100%;border-collapse:collapse}
+td,th{padding:8px;border-bottom:1px solid #334155;text-align:right}
+th{text-align:left}
+input,select{width:100%;padding:6px;background:#0b1229;border:1px solid #334155;color:white;border-radius:6px}
+button{padding:8px 12px;background:#1e40af;border:none;color:white;border-radius:6px;margin-top:10px;cursor:pointer}
+.ok{color:#22c55e}
+.bad{color:#ef4444}
+</style>
+</head>
+
+<body>
+<div class="wrap">
+
+<h1>Формирование сметы Генподрядчика</h1>
+
+<div class="card">
+<h2>1️⃣ База проекта</h2>
+<table>
+<tr><th>Глава 2</th><td id="budgetOut"></td></tr>
+<tr><th>2.6–2.9</th><td id="excludedOut"></td></tr>
+<tr><th><b>База 2.1–2.5</b></th><td id="baseOut"></td></tr>
+</table>
+</div>
+
+<div class="card">
+<h2>2️⃣ Прямые договоры</h2>
+<table id="suppliers">
+<thead>
+<tr>
+<th>Статья</th>
+<th>Сумма</th>
+<th></th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+<button onclick="addRow()">Добавить</button>
+</div>
+
+<div class="card">
+<h2>4️⃣ Лимит договора ГП</h2>
+<table>
+<tr><th>Прямые договоры</th><td id="supplierOut"></td></tr>
+<tr><th><b>Лимит ГП</b></th><td id="limitOut"></td></tr>
+</table>
+</div>
+
+<div class="card">
+<h2>5️⃣ Банковская структура (2.1–2.5)</h2>
+<table>
+<tr><th>2.1</th><td id="s21"></td></tr>
+<tr><th>2.2.1</th><td id="s221"></td></tr>
+<tr><th>2.2.2</th><td id="s222"></td></tr>
+<tr><th>2.3</th><td id="s23"></td></tr>
+<tr><th>2.4</th><td id="s24"></td></tr>
+<tr><th>2.5</th><td id="s25"></td></tr>
+<tr><th><b>ИТОГО</b></th><td id="structureTotal"></td></tr>
+</table>
+</div>
+
+<div class="card">
+<h2>🟣 Управленческий анализ</h2>
+<label>Накладные (%)</label>
+<input id="oh" value="10" oninput="calculate()">
+<label>Прибыль (%)</label>
+<input id="pr" value="6" oninput="calculate()">
+<table>
+<tr><th>Direct</th><td id="uDirect"></td></tr>
+<tr><th>Накладные</th><td id="uOh"></td></tr>
+<tr><th>Прибыль</th><td id="uPr"></td></tr>
+<tr><th><b>ИТОГО</b></th><td id="uTotal"></td></tr>
+</table>
+</div>
+
+</div>
+
+<script>
+
+// ==== исходные банковские данные ====
+
+const budget = 613842008;
+const g26 = 4000000;
+const g27 = 44830000;
+const g28 = 26806612;
+const g29 = 50903148;
+
+const baseStructure = {
+"2.1": 49828259,
+"2.2.1": 31866900,
+"2.2.2": 293672177,
+"2.3": 61448739,
+"2.4": 29310429,
+"2.5": 21175742
+};
+
+function f(x){
+return Math.round(x).toLocaleString("ru-RU")+" ₽";
+}
+
+function addRow(){
+let row=document.createElement("tr");
+row.innerHTML=`
+<td>
+<select onchange="calculate()">
+<option value="2.1">2.1</option>
+<option value="2.2.1">2.2.1</option>
+<option value="2.2.2">2.2.2</option>
+<option value="2.3">2.3</option>
+<option value="2.4">2.4</option>
+<option value="2.5">2.5</option>
+</select>
+</td>
+<td><input oninput="calculate()"></td>
+<td><button onclick="this.parentElement.parentElement.remove();calculate()">X</button></td>
+`;
+document.querySelector("#suppliers tbody").appendChild(row);
+}
+
+function calculate(){
+
+const excluded = g26+g27+g28+g29;
+const base = budget - excluded;
+
+budgetOut.innerHTML=f(budget);
+excludedOut.innerHTML=f(excluded);
+baseOut.innerHTML=f(base);
+
+// копируем структуру
+let structure = {...baseStructure};
+
+let supplierSum = 0;
+
+document.querySelectorAll("#suppliers tbody tr").forEach(r=>{
+let article=r.children[0].children[0].value;
+let sum=parseFloat(r.children[1].children[0].value)||0;
+structure[article]-=sum;
+supplierSum+=sum;
+});
+
+const limit = base - supplierSum;
+
+supplierOut.innerHTML=f(supplierSum);
+limitOut.innerHTML=f(limit);
+
+// вывод структуры
+let total=0;
+
+for(let key in structure){
+structure[key]=Math.round(structure[key]);
+total+=structure[key];
+
+document.getElementById(
+"s"+key.replace(".","")
+).innerHTML=f(structure[key]);
+}
+
+structureTotal.innerHTML=f(total);
+
+structureTotal.className = 
+(Math.round(total)===Math.round(limit))
+? "ok" : "bad";
+
+// ===== управленка =====
+
+let ohPct=parseFloat(oh.value)/100;
+let prPct=parseFloat(pr.value)/100;
+
+let direct=limit/(1+ohPct+prPct*(1+ohPct));
+let ohSum=direct*ohPct;
+let prSum=(direct+ohSum)*prPct;
+
+uDirect.innerHTML=f(direct);
+uOh.innerHTML=f(ohSum);
+uPr.innerHTML=f(prSum);
+uTotal.innerHTML=f(direct+ohSum+prSum);
+
+}
+
+addRow();
+calculate();
+
+</script>
+</body>
+</html>
